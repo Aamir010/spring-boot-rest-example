@@ -1,0 +1,78 @@
+def masterBranch = 'master'
+def mypod = "java-build-${UUID.randomUUID().toString()}"
+
+pipeline{
+    agent{
+        kubernetes {
+            label mypod
+            defaultContainer 'jnlp'
+            yaml """
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    name: mypod
+spec:
+  dnsConfig:
+    options:
+      - name: ndots
+        value: "2"
+  nodeSelector:
+    beta.kubernetes.io/os: linux
+    beta.kubernetes.io/arch: amd64
+  containers:
+  - name: git
+    image: alpine/git:v2.26.2
+    imagePullPolicy: IfNotPresent
+    tty: true
+    command:
+    - cat
+  - name: maven
+    image: maven:3.6.3-adoptopenjdk-8
+    imagePullPolicy: IfNotPresent
+    tty: true
+    command:
+    - cat
+"""
+        }
+    }
+    options {
+        skipDefaultCheckout()
+        timeout(time: 20, unit: 'MINUTES')
+        timestamps()
+    }
+    stages {
+        stage("Checkout") {
+            steps {
+                container('git') {
+                    checkout([$class: 'GitSCM',
+                              branches: [[name: "aamir-test"]],
+                              doGenerateSubmoduleConfigurations: false,
+                              extensions: [[$class: 'CheckoutOption', timeout: 30],
+                                           [$class: 'RelativeTargetDirectory',
+                                            relativeTargetDir: "${env.WORKSPACE}"],
+                                           [$class: 'CloneOption', depth: 300, noTags: true, reference: '', shallow: true],
+                                           [$class: 'UserIdentity',
+                                            email: 'aamir@hotmail.com',
+                                            name: 'Build']],
+                              submoduleCfg: [],
+                              userRemoteConfigs: [[url: 'https://github.com/Aamir010/spring-boot-rest-example.git']]])
+                }
+            }
+        }
+        stage("Build") {
+            steps {
+                container('maven') {
+                    sh "mvn install -DskipTests"
+                }
+            }
+        }
+        stage("Test") {
+            steps {
+                container('maven') {
+                    sh "mvn clean package"
+                }
+            }
+        }
+    }
+}
