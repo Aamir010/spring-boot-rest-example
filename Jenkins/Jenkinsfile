@@ -1,5 +1,23 @@
+import hudson.model.*
+import jenkins.model.CauseOfInterruption.UserInterruption
+
 def masterBranch = 'master'
 def mypod = "java-build-${UUID.randomUUID().toString()}"
+
+@NonCPS
+def disableRestartStage() {
+    restartedFromStage = currentBuild.getBuildCauses().any { cause ->
+        cause._class == 'org.jenkinsci.plugins.pipeline.modeldefinition.causes.RestartDeclarativePipelineCause'
+    }
+    if (restartedFromStage) {
+        error 'Restarting build from a stage is disabled. Please rerun build from start.'
+        currentBuild.result = 'ABORTED'
+        return false
+    }
+    else {
+        return true
+    }
+}
 
 pipeline{
     agent{
@@ -45,6 +63,9 @@ spec:
         stage("Checkout") {
             steps {
                 container('git') {
+                    script {
+                        disableRestartStage()
+                    }
                     checkout([$class: 'GitSCM',
                               branches: [[name: "aamir-test"]],
                               doGenerateSubmoduleConfigurations: false,
@@ -63,6 +84,9 @@ spec:
         stage("Build") {
             steps {
                 container('maven') {
+                    script {
+                        disableRestartStage()
+                    }
                     sh "mvn install -DskipTests"
                 }
             }
@@ -70,6 +94,9 @@ spec:
         stage("Test") {
             steps {
                 container('maven') {
+                    script {
+                        disableRestartStage()
+                    }
                     sh "mvn clean package"
                 }
             }
