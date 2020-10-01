@@ -80,11 +80,13 @@ spec:
         stage('Check') {
             steps {
                 node('master') {
-                    disableRestartStage()
-                    // Abort the outdated PR is Perform this Operation in Master
-                    if (env.JOB_NAME.toLowerCase().contains("pullrequest_pipeline")) {
-                        println " Abort Outdated PR if Applicable"
-                        abortPreviousBuilds()
+                    script {
+                        disableRestartStage()
+                        // Abort the outdated PR is Perform this Operation in Master
+                        if (env.JOB_NAME.toLowerCase().contains("pullrequest_pipeline")) {
+                            println " Abort Outdated PR if Applicable"
+                            abortPreviousBuilds()
+                        }
                     }
                 }
             }
