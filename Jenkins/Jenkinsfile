@@ -1,7 +1,7 @@
 import hudson.model.*
 import jenkins.model.CauseOfInterruption.UserInterruption
 
-def masterBranch = 'master'
+def masterBranch = 'aamir-test'
 def mypod = "java-build-${UUID.randomUUID().toString()}"
 
 @NonCPS
