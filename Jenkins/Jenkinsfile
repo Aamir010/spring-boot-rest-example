@@ -19,6 +19,23 @@ def disableRestartStage() {
     }
 }
 
+// below script to Abort outdated PR's
+def abortPreviousBuilds() {
+    Run previousBuild = currentBuild.rawBuild.getPreviousBuildInProgress()
+    while (previousBuild != null) {
+        if (previousBuild.isInProgress()) {
+            def executor = previousBuild.getExecutor()
+            if (executor != null) {
+                echo ">> Aborting older build #${previousBuild.number}"
+                executor.interrupt(Result.ABORTED, new UserInterruption(
+                        "Aborted by newer build #${currentBuild.number}"
+                ))
+            }
+        }
+        previousBuild = previousBuild.getPreviousBuildInProgress()
+    }
+}
+
 pipeline{
     agent{
         kubernetes {
@@ -60,14 +77,57 @@ spec:
         timestamps()
     }
     stages {
-        stage("Checkout") {
+        stage('Check') {
+            steps {
+                node('master') {
+                    disableRestartStage()
+                    // Abort the outdated PR is Perform this Operation in Master
+                    if (env.JOB_NAME.toLowerCase().contains("pullrequest_pipeline")) {
+                        println " Abort Outdated PR if Applicable"
+                        abortPreviousBuilds()
+                    }
+                }
+            }
+        }
+        stage("PR Config") {
+            when {
+                changeRequest target: masterBranch
+            }
             steps {
                 container('git') {
                     script {
                         disableRestartStage()
                     }
                     checkout([$class: 'GitSCM',
-                              branches: [[name: "aamir-test"]],
+                              branches: [[name: "${env.CHANGE_BRANCH}"]],
+                              doGenerateSubmoduleConfigurations: false,
+                              extensions: [[$class: 'CheckoutOption', timeout: 30],
+                                           [$class: 'RelativeTargetDirectory',
+                                            relativeTargetDir: "${env.WORKSPACE}"],
+                                           [$class: 'PreBuildMerge',
+                                            options: [ 	fastForwardMode: "NO_FF",
+                                                          mergeRemote: 'origin',
+                                                          mergeTarget: "${env.CHANGE_TARGET}"]],
+                                           [$class: 'CloneOption', depth: 300, noTags: true, reference: '', shallow: true],
+                                           [$class: 'UserIdentity',
+                                            email: 'aamir@hotmail.com',
+                                            name: 'Build']],
+                              submoduleCfg: [],
+                              userRemoteConfigs: [[url: 'https://github.com/Aamir010/spring-boot-rest-example.git']]])
+                }
+            }
+        }
+        stage('Master Config') {
+            when {
+                branch masterBranch
+            }
+            steps {
+                container('git') {
+                    script {
+                        disableRestartStage()
+                    }
+                    checkout([$class: 'GitSCM',
+                              branches: [[name: "${env.BRANCH_NAME}"]],
                               doGenerateSubmoduleConfigurations: false,
                               extensions: [[$class: 'CheckoutOption', timeout: 30],
                                            [$class: 'RelativeTargetDirectory',
